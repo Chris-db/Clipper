@@ -1,32 +1,36 @@
-# Clipper — local vertical-clip + caption tool
+# Clipper
 
-A free, watermark-free, runs-on-your-own-PC take on "Opus Clip". You find the
-moment and give it timestamps; it cuts the clip, reframes it to vertical 9:16,
-transcribes the speech locally, and burns in word-by-word highlighted captions.
-Nothing leaves your machine.
+Opus Clip and the other "turn your long video into shorts" tools charge a
+subscription, stamp a watermark on the free tier, and upload your footage to
+someone else's server. All I wanted was the boring part done for me. I already
+know which moment is good. Clipper takes a video and two timestamps, cuts the
+clip, reframes it to vertical 9:16, transcribes the speech on my own machine,
+and burns in captions that highlight each word as it's spoken. It's free and
+nothing leaves the PC.
 
-There's a CLI (`clip.py`), a small Tkinter GUI (`clipper_gui.py`), and two
-drag-and-drop `.bat` launchers for Windows.
+There's a command line (`clip.py`), a small Tkinter window (`clipper_gui.py`)
+and two `.bat` files you can drag videos onto.
 
-## What it uses
+## What it's built on
 
-- **ffmpeg** — cutting, reframing, burning captions
-- **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** — local speech-to-text
-- **yt-dlp** — optional; fetches a YouTube URL once and caches it locally
+ffmpeg does the cutting, reframing and caption burn-in.
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) does the
+speech-to-text locally. yt-dlp is optional and only used if you hand it a
+YouTube URL instead of a file.
 
 ## Setup
 
-Requires Python 3.10+ and `ffmpeg` on your PATH.
+You need Python 3.10 or newer and ffmpeg on your PATH.
 
 ```bat
 py -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-winget install Gyan.FFmpeg       :: if you don't have ffmpeg yet
+winget install Gyan.FFmpeg       :: skip if you already have ffmpeg
 ```
 
-The first run downloads the Whisper model you pick (~500 MB for `small.en`)
-into `.cache\`.
+The first run downloads the Whisper model you asked for into `.cache\`. The
+default, `small.en`, is about 500 MB.
 
 ## Usage
 
@@ -34,8 +38,8 @@ into `.cache\`.
 clip SOURCE START END [options]
 ```
 
-`SOURCE` is a local video file **or** a YouTube URL. Timestamps accept `SS`,
-`MM:SS` or `HH:MM:SS` (e.g. `18:42` or `1:02:30`, optional `.5`).
+`SOURCE` is a local video file or a YouTube URL. Timestamps can be `SS`,
+`MM:SS` or `HH:MM:SS`, with an optional `.5` on the end.
 
 ```
 clip talk.mp4 18:42 19:15
@@ -43,61 +47,66 @@ clip "https://youtu.be/XXXX" 1:02:30 1:03:10 --model medium.en
 clip talk.mp4 18:42 19:15 --reframe crop --font "Bebas Neue"
 ```
 
-Finished clips land in `clips\`. Double-click **`Clipper GUI.bat`** for the
-windowed version.
+Clips land in `clips\`. Double-click `Clipper GUI.bat` if you'd rather have a
+window.
 
-### Subtitle-only mode
+### Just captions, no cutting
 
-Omit the timestamps and it keeps the video exactly as-is (any size, any aspect
-ratio) and only burns in captions:
+Leave out the timestamps and Clipper keeps the video exactly as it is, any size,
+any aspect ratio, and only burns in captions.
 
 ```
 clip myvideo.mp4
 ```
 
-Or drag a video onto **`subs.bat`**. Output is `clips\<name>_subtitled.mp4`.
-Fully offline.
+Or drag a video onto `subs.bat`. The output is `clips\<name>_subtitled.mp4`.
+This mode never touches the internet.
 
-- Non-English audio: `--model small` (auto-detects language) or `--model large-v3`.
-- Bigger/smaller captions: `--fontsize 120`; move them up: `--marginv 400`.
+For non-English audio use `--model small` (it auto-detects the language) or
+`--model large-v3`. `--fontsize 120` makes the captions bigger and
+`--marginv 400` moves them further up the frame.
 
 ## Options
 
 | Option | Default | What it does |
 |---|---|---|
-| `--reframe blur\|crop\|none` | `blur` | `blur` keeps the whole frame with a blurred fill (never crops out a speaker); `crop` zooms to fill |
-| `--model base.en\|small.en\|medium.en\|large-v3` | `small.en` | Bigger = more accurate captions, slower. `medium.en` is a good balance |
-| `--device cpu\|cuda` | `cpu` | `cuda` is much faster on an NVIDIA GPU but needs cuDNN installed |
-| `--font "Name"` | `Arial Black` | Caption font. Install **Bebas Neue** for the classic clip look |
-| `--fontsize N` | `96` | Caption size |
-| `--marginv N` | `300` | Distance of captions from the bottom |
-| `--no-captions` | off | Skip captions entirely |
+| `--reframe blur\|crop\|none` | `blur` | `blur` keeps the whole frame on a blurred background, so nobody gets cropped out of a two-person shot. `crop` zooms in to fill the frame. |
+| `--model base.en\|small.en\|medium.en\|large-v3` | `small.en` | Bigger models are more accurate and slower. `medium.en` is the sweet spot on a CPU. |
+| `--device cpu\|cuda` | `cpu` | `cuda` is much faster on an NVIDIA card but needs cuDNN installed. |
+| `--font "Name"` | `Arial Black` | Caption font. Bebas Neue gives the look every viral clip seems to use. |
+| `--fontsize N` | `96` | Caption size. |
+| `--marginv N` | `300` | Distance from the bottom edge. |
+| `--no-captions` | off | Skip captions. |
 
 ## How it works
 
-1. **Get the segment** — `ffmpeg -ss/-to` on a local file. For a URL, yt-dlp
-   downloads the full video once (≤1080p, h264) into `.cache\` keyed by video
-   id, so every later clip from the same video is instant and offline.
-2. **Reframe** — for `blur`, the source is scaled to fill 1080×1920, blurred,
-   and the original frame is overlaid centred on top; for `crop`, it's scaled
-   and centre-cropped.
-3. **Transcribe** — faster-whisper with `word_timestamps=True` gives a start/end
-   for every word.
-4. **Caption** — words are grouped into short chunks (max 5 words, new chunk
-   after a 0.6 s pause) and written as an ASS subtitle file: one `Dialogue`
-   line per word, showing the whole chunk with just the current word in the
-   highlight colour. ffmpeg burns that in with `subtitles=`.
+For a local file, ffmpeg cuts the range with `-ss` and `-to`. For a URL,
+yt-dlp downloads the whole video once (1080p or lower, h264) into `.cache\`,
+named by video id, so the second clip from the same video is instant and
+offline.
 
-Colours, words-per-line and highlight style are constants near the top of
-`clip.py` (`BASE_COLOR`, `HL_COLOR`, `MAX_WORDS`).
+Reframing to 9:16 in `blur` mode scales the source up to fill 1080x1920, blurs
+it, and overlays the original frame centred on top. `crop` mode scales and
+centre-crops instead.
 
-## A note on YouTube downloads
+faster-whisper runs with `word_timestamps=True`, so every word comes back with
+a start and end time. Clipper groups those into chunks of up to five words,
+starting a new chunk after any pause longer than 0.6 seconds. It writes an ASS
+subtitle file with one `Dialogue` line per word. Each line shows the whole
+chunk, with only the current word in the highlight colour. ffmpeg then burns
+that file in with the `subtitles=` filter.
 
-YouTube throttles direct downloads unless yt-dlp solves its anti-bot challenge
-(`--remote-components ejs:github`, which runs remote JS). If URL mode is slow,
-download the full video once with any tool you trust and clip from the local
-file — that path has no throttling and works offline.
+The colours, the words-per-chunk limit and the pause threshold are constants
+near the top of `clip.py` (`BASE_COLOR`, `HL_COLOR`, `MAX_WORDS`, `GAP_BREAK`).
+
+## YouTube downloads are slow sometimes
+
+YouTube throttles yt-dlp unless it solves an anti-bot challenge, which needs
+`--remote-components ejs:github` and a JS runtime (deno). Clipper passes the
+flag, but if URL mode is crawling, the easy fix is to download the video once
+with whatever tool you like and clip from the local file. That path is never
+throttled.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
