@@ -12,7 +12,7 @@ drag-and-drop `.bat` launchers for Windows.
 
 - **ffmpeg** — cutting, reframing, burning captions
 - **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** — local speech-to-text
-- **yt-dlp** — optional; downloads just the section you want from a YouTube URL
+- **yt-dlp** — optional; fetches a YouTube URL once and caches it locally
 
 ## Setup
 
@@ -75,16 +75,18 @@ Fully offline.
 
 ## How it works
 
-1. **Get the segment** — `ffmpeg -ss/-to` on a local file, or `yt-dlp
-   --download-sections` for a URL so only the wanted range is fetched.
+1. **Get the segment** — `ffmpeg -ss/-to` on a local file. For a URL, yt-dlp
+   downloads the full video once (≤1080p, h264) into `.cache\` keyed by video
+   id, so every later clip from the same video is instant and offline.
 2. **Reframe** — for `blur`, the source is scaled to fill 1080×1920, blurred,
    and the original frame is overlaid centred on top; for `crop`, it's scaled
    and centre-cropped.
 3. **Transcribe** — faster-whisper with `word_timestamps=True` gives a start/end
    for every word.
-4. **Caption** — words are grouped into short lines and written as an ASS
-   subtitle file with per-word `\k` karaoke tags, so the spoken word lights up
-   in the highlight colour. ffmpeg burns that in with `subtitles=`.
+4. **Caption** — words are grouped into short chunks (max 5 words, new chunk
+   after a 0.6 s pause) and written as an ASS subtitle file: one `Dialogue`
+   line per word, showing the whole chunk with just the current word in the
+   highlight colour. ffmpeg burns that in with `subtitles=`.
 
 Colours, words-per-line and highlight style are constants near the top of
 `clip.py` (`BASE_COLOR`, `HL_COLOR`, `MAX_WORDS`).
